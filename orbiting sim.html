@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html>
+    
+    <head>
+        
+        <title>Orbit Simulator</title>
+        <meta charset="utf-8" />
+        
+        <style>
+            
+            body {
+                background-color: #aaa;
+            }
+            
+            html, body, canvas {
+                margin: 0px;
+                padding: 0px;
+                overflow: hidden;
+            }
+            
+            canvas {
+                background-color: #fff;
+                position: fixed;
+                left: calc(50% - 301px);
+                top: calc(50% - 301px);
+                border: 2px solid black;
+            }
+            
+        </style>
+        
+    </head>
+    
+    <body>
+        
+        <script type="text/javascript" src="p5.js"></script>
+        
+        <script type="text/javascript">
+            
+            const cW = 600, cH = 600;
+            const G = 6.674 * Math.pow(10, -11);
+            const EarthMass = 5.972*Math.pow(10, 24);
+            const EarthRadius = 6371;
+            const SunMass = 1.989 * Math.pow(10, 30);
+            const SunRadius = 695700;
+            const MoonRadius = 1737;
+            const MoonMass = 7.348 * Math.pow(10, 22);
+            const MoonDist = 384400000;
+            const SunDist = 149600000000;
+            const SatelliteDist = 160000;
+            
+            class Vector {
+                constructor (x, y) {
+                    this.x = x;
+                    this.y = y;
+                }
+                
+                get length() {
+                    var x = this.x, y = this.y;
+                    
+                    return Math.sqrt(x*x + y*y);
+                }
+            }
+            
+            
+            class SpaceObject {
+                
+                constructor(x, y, mass, radius, color) {
+                    
+                    this.x = x;
+                    this.y = y;
+                    
+                    this.mass = mass;
+                    
+                    this.r = radius;
+                    
+                    this.color = (typeof color == "string") ? color : "black";
+                    
+                    this.velocity = new Vector(0, 0);
+                    
+                    this.forces = [];
+                    
+                    this.trail = false;
+                    this.trails = [];
+                    this.trailLength = 35;
+                    
+                    this.collisionDistance = radius;
+                    this.collided = false;
+                    
+                    this.hasExploded = false;
+                }
+                
+                draw() {
+                    if (this.trails.length > 0) this.drawTrail();
+                    
+                    strokeWeight(1/scl);
+                    
+                    var v = this.velocity;
+                    var len = v.length;
+                    line(Math.round(this.x), Math.round(this.y), Math.round(this.x) + v.x, Math.round(this.y) + v.y);
+                    
+                    var minsize = 3;
+                    
+                    var r;
+                    if (this.collisionDistance > this.r) {
+                        fill("lightblue");
+                        r = this.collisionDistance;
+                        if (r * scl < minsize) r = minsize / scl;
+
+                        ellipse(Math.round(this.x), Math.round(this.y), r*2, r*2);
+                    }
+                    
+                    fill(this.color);
+                    r = this.r;
+                    if (r * scl < minsize) r = minsize / scl;
+                    
+                    ellipse(Math.round(this.x), Math.round(this.y), r*2, r*2);
+                }
+                
+                get totalVelocity() {
+                    return this.velocity.length;
+                }
+                
+                get totalForce() {
+                    var sumX = 0;
+                    var sumY = 0;
+                    
+                    this.forces.forEach(function (obj) {
+                        sumX += obj.x;
+                        sumY += obj.y;
+                    });
+                    
+                    var f = new Vector(sumX, sumY);
+                    
+                    return f;
+                }
+                
+                move() {
+                    if (this.collided) return false;
+                    
+                    var v = this.velocity;
+                    this.x += v.x * timeunit;
+                    this.y += v.y * timeunit;
+                    
+                    if (this.trail) {
+                        this.updateTrail();
+                    }
+                }
+                
+                updateTrail() {
+                    var len = this.trails.length;
+                    var o = new Vector(this.x, this.y);
+                    
+                    if (len > 0) {
+                        var lastO = this.trails[len-1];
+                        var dist = Space.distance(o, lastO);
+
+                        if (dist > this.velocity.length/2) {
+                            this.trails.push(o);
+                        }
+                    } else {
+                        this.trails.push(o);
+                    }
+                    
+                    
+                    if (this.trails.length > this.trailLength) {
+                        this.trails.splice(0, 1);
+                    }
+                }
+                
+                drawTrail() {
+                    if (this.trails.length < 2) return false;
+                    
+                    strokeWeight(1 / scl);
+                    
+                    for (let i = 0; i < this.trails.length-1; i++) {
+                        line(this.trails[i].x, this.trails[i].y, this.trails[i+1].x, this.trails[i+1].y);
+                    }
+                }
+                
+                addBatchForce(force) {
+                    this.forces.push(force);
+                }
+                
+                applyBatchForces() {
+                    
+                    var v = this.velocity;
+                    var mass = this.mass;
+                    this.forces.forEach(function (force) {
+
+                        var aX = force.x / mass;
+                        var aY = force.y / mass;
+
+                        v.x += aX * timeunit;
+                        v.y += aY * timeunit;
+                        
+                    });
+                    
+                }
+                
+                clearForces() {
+                    this.forces = [];
+                }
+                
+                turn(angle) {
+                    
+                    var cosA = Math.cos(angle);
+                    var sinA = Math.sin(angle);
+                    
+                    var v = this.velocity;
+                    
+                    var x = v.x * cosA - v.y * sinA;
+                    var y = v.x * sinA + v.y * cosA;
+                    
+                    this.velocity.x = x;
+                    this.velocity.y = y;
+                    
+                }
+                
+                changeSpeed(n) {
+                    this.velocity.x *= n;
+                    this.velocity.y *= n;
+                }
+                
+                orbit(orbitObj) {
+                    var f = Space.gravityForce(this, orbitObj).length;
+                    var dist = Space.distance(this, orbitObj);
+                    var vec = Space.distVector(orbitObj, this);
+                    var vX = Math.sqrt((f*dist)/this.mass) * vec.x;
+                    var vY = Math.sqrt((f*dist)/this.mass) * vec.y;
+                    
+                    // Determine direction
+                    // x1*y2 - x2*y1
+                    var mod = orbitObj.velocity.x * this.velocity.y - this.velocity.x * orbitObj.velocity.y;
+                    
+                    this.velocity.x = vX;
+                    this.velocity.y = vY;
+                    
+                    this.turn(-0.5*Math.PI);
+                    
+                    this.velocity.x += orbitObj.velocity.x;
+                    this.velocity.y += orbitObj.velocity.y;
+                }
+                
+                collision(obj) {
+                    
+                    var colDist = this.collisionDistance + obj.collisionDistance;
+                    
+                    var dist = Space.distance(this, obj);
+                    
+                    this.collided = false;
+                    
+                    if (dist <= colDist + 10 && !obj.hasExploded) {
+                        // Determine lightest obj
+                        if (this.mass <= obj.mass) { // obj1 is the lightest
+                            this.collided = true;
+                        }
+                    }
+                    
+                    return this.collided;
+                    
+                }
+                
+            }
+            
+            
+            class Space {
+                
+                constructor (objlist) {
+                    
+                    this.objlist = (objlist instanceof Array) ? objlist : [];
+                    
+                    this.crashView = new CrashView();
+                    
+                }
+                
+                draw() {
+                    this.objlist.forEach(function (obj) {
+                        obj.draw();
+                    });
+                    
+                    this.crashView.draw();
+                }
+                
+                gravity() {
+                    
+                    var l = this.objlist;
+                    
+                    for (var i = 0; i < l.length; i++) {
+                        
+                        for (var j = 0; j < l.length; j++) {
+                            
+                            if (i !== j) { // Don't pull on itself
+                                
+                                var obj1 = l[i];
+                                var obj2 = l[j];
+                                
+                                if (obj1.collided) break;
+                                
+                                var force = Space.gravityForce(obj1, obj2);
+                                
+                                obj1.addBatchForce(force);
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    l.forEach(function (obj) {
+                        obj.applyBatchForces();
+                    });
+                    
+                }
+                
+                static gravityForce(obj1, obj2) {
+                                
+                    var dist = Space.distance(obj1, obj2);
+
+                    var netForce = (obj1.mass * obj2.mass * G) / Math.pow(dist, 2);
+                    
+                    var vec = Space.distVector(obj2, obj1);
+                    var force = new Vector(netForce*vec.x, netForce*vec.y);
+
+                    return force;
+                }
+                
+                static distance(obj1, obj2) {
+                    
+                    var x = obj1.x - obj2.x;
+                    var y = obj1.y - obj2.y;
+                    
+                    return Math.sqrt(x*x + y*y);
+                    
+                }
+                
+                static distVector(obj1, obj2) {
+                    var x = obj1.x - obj2.x;
+                    var y = obj1.y - obj2.y;
+                    var len = Math.sqrt(x*x + y*y);
+                    
+                    return new Vector(x/len, y/len);
+                }
+                
+                update() {
+                    this.clearForces();
+                    
+                    this.collision();
+                    
+                    this.objlist.forEach(function (obj) {
+                        if (obj.hasExploded) obj.collided = true;
+                    });
+                    
+                    this.gravity();
+                    
+                    this.objlist.forEach(function (obj) {
+                        obj.move();
+                    })
+                }
+                
+                clearForces() {
+                    this.objlist.forEach(function (obj) {
+                        obj.clearForces();
+                    });
+                }
+                
+                
+                collision() {
+                    
+                    var l = this.objlist;
+                    
+                    for (var i = 0; i < l.length; i++) {
+                        
+                        var obj1 = l[i];
+                        var collision = false;
+                        
+                        for (var j = 0; j < l.length; j++) {
+                            
+                            if (i !== j) { // Don't collide with itself
+                                var obj2 = l[j];
+                                
+                                collision = obj1.collision(obj2);
+                                if (collision) break;
+                            }
+                            
+                        }
+                        
+                        obj1.collided = collision;
+                        
+                    }
+                    
+                    for (let i = l.length-1; i >= 0; i--) {
+                        let obj = l[i];
+                        
+                        if (obj.collided && !obj.hasExploded) {
+                            
+                            if (obj.mass >= 1000) {
+                                
+                                for (let a = 0; a < Math.random()*20 + 5; a++) {
+                                    let r = Math.random()*Math.PI*2;
+
+                                    let deb = new Debris(obj.x, obj.y);
+
+                                    deb.velocity.x = Math.cos(r) * 10000 + obj.velocity.x;
+                                    deb.velocity.y = Math.sin(r) * 10000 + obj.velocity.y;
+
+                                    deb.x += Math.cos(r)*(obj.r + deb.r + 200);
+                                    deb.y += Math.sin(r)*(obj.r + deb.r + 200);
+
+                                    space.objlist.push(deb);
+                                }
+
+                            }
+                            
+                            obj.hasExploded = true;
+                            this.crashView.addObj(new Vector(obj.x, obj.y));
+                            this.objlist.splice(i, 1);
+                            
+                            globalCollisions++;
+                            
+                        }
+                    }
+                    
+                }
+                
+            }
+            
+            
+            // Specific space objects
+            class Earth extends SpaceObject {
+                constructor(x, y) {
+                    super(x, y, EarthMass, EarthRadius, "blue");
+                    
+                    //this.collisionDistance = 100000;
+                }
+            }
+            
+            class Satellite extends SpaceObject {
+                constructor(x, y) {
+                    super(x, y, 1000, 1000, "#0f0");
+                }
+            }
+            
+            class Ship extends Satellite {
+                constructor(x, y) {
+                    super(x, y);
+                    this.color = "red";
+                    
+                    this.trail = true;
+                }
+            }
+            
+            class Sun extends SpaceObject {
+                constructor(x, y) {
+                    super(x, y, SunMass, SunRadius, "yellow");
+                }
+            }
+            
+            class Moon extends SpaceObject {
+                constructor(x, y) {
+                    super(x, y, MoonMass, MoonRadius, "grey");
+                }
+            }
+            
+            class Debris extends SpaceObject {
+                constructor(x, y) {
+                    var mass = 100;
+                    var r = 100;
+                    super(x, y, mass, r, "grey");
+                }
+            }
+            
+            
+            function keyPressed() {
+                switch (keyCode) {
+                    case LEFT_ARROW:
+                        satellite.turn(-0.1*Math.PI);
+                        break;
+                    case RIGHT_ARROW:
+                        satellite.turn(0.1*Math.PI);
+                        break;
+                    case UP_ARROW:
+                        satellite.changeSpeed(1.25);
+                        break;
+                    case DOWN_ARROW:
+                        satellite.changeSpeed(0.8);
+                        break;
+                    case 32:
+                        satellite.orbit(earth);
+                        break;
+                    case 81:
+                        speedup /= 2;
+                        if (speedup < 1) speedup = 1;
+                        break;
+                    case 87:
+                        speedup *= 2;
+                        break;
+                    case 69:
+                        scl /= 2;
+                        break;
+                    case 82:
+                        scl *= 2;
+                        break;
+                    case 27:
+                        setup();
+                        return false;
+                        break;
+                    case 13:
+                        /*if (!(satellite.trails.length > 0 && !satellite.trail)) {
+                            satellite.trail = !satellite.trail;
+                            if (satellite.trail) satellite.trails.length = 0;
+                        } else satellite.trails.length = 0;*/
+                        
+                        satellite.trail = !satellite.trail;
+                        
+                        break;
+                    case 49:
+                        
+                        spawnRandomSat()
+                        break;
+                }
+            }
+            
+            function spawnRandomSat() {
+                var r = Math.random()*2*Math.PI;
+                var d = Math.floor(Math.random()*100000) + 100000;
+
+                var x = Math.cos(r) * d + earth.x;
+                var y = Math.sin(r) * d + earth.y;
+
+                let deb = new Satellite(x, y);
+
+                deb.orbit(earth);
+
+                var e = 0;
+                r = Math.random()*e*Math.PI;
+                
+                deb.turn(e);
+
+                deb.changeSpeed(Math.random()*0.2 + 0.9);
+
+                space.objlist.push(deb);
+            }
+            
+            var space, scl, timeunit, speedup, accuracy;
+            
+            class CrashView {
+                constructor () {
+                    this.objlist = [];
+                }
+                
+                draw() {
+                    
+                    var size = 5;
+                    fill("pink");
+                    this.objlist.forEach(function (obj) {
+                        ellipse(obj.x, obj.y, size/scl, size/scl);
+                    });
+                }
+                
+                addObj(obj) {
+                    this.objlist.push(obj);
+                }
+            }
+            
+            // SpaceObjects references
+            var earth, satellite, sun, trails, debris, globalCollisions;
+            var followObj;
+            function setup() {
+                createCanvas(cW, cH);
+                
+                globalCollisions = 0;
+                
+                accuracy = 2;
+                speedup = accuracy;
+                timeunit = 1/(60*accuracy);
+                
+                var dist = SatelliteDist;
+                //sun = new Sun(0, dist);
+                earth = new Earth(0, 0);
+                //earth.orbit(sun);
+                
+                satellite = new Ship(0, -SatelliteDist);
+                satellite.orbit(earth);
+                
+                debris = new Satellite(0, SatelliteDist);
+                debris.orbit(earth);
+                //satellite.trail = true;
+                //earth.velocity.x = Math.sqrt(G * sun.mass / Space.distance(earth, sun));
+                //satellite.velocity.x = Math.sqrt(G * earth.mass / Space.distance(earth, satellite)) + earth.velocity.x;
+                
+                var l = [
+                    earth,
+                    satellite,
+                    debris
+                ];
+                
+                space = new Space(l);
+                
+                for (var i = 0; i < 100; i++) {
+                    spawnRandomSat();
+                }
+                
+                scl = 1 / (dist / 125);
+                
+                background("white");
+                
+                followObj = earth;
+            }
+            
+            function draw() {
+                
+                background("white");
+                
+                
+                for (let i = 0; i < speedup; i++) {
+                    space.update();
+                }
+                
+                var transX = -followObj.x*scl + cW/2;
+                var transY = -followObj.y*scl + cH/2;
+                
+                translate(transX, transY);
+                
+                //scl = 1 / (Math.ceil((Space.distance(satellite, earth)/1000) / 230) * 1000);
+                scale(scl);
+                
+                strokeWeight(1/scl);
+                
+                
+                space.draw();
+                
+                // INFO
+                scale(1/scl);
+                translate(-transX, -transY);
+                
+                textAlign(LEFT, TOP);
+                
+                textSize(20);
+                fill("black");
+                text("Zoom: 1/" + (1/scl) + "x", 5, 5);
+                text("Time: " + speedup/accuracy + "x", 5, 25);
+                var dist = Math.round(Space.distance(satellite, earth));
+                
+                var v = Math.round(satellite.velocity.length);
+                var pow = v.toString().length-1;
+                v /= Math.pow(10, pow);
+                text("Velocity: " + v.toFixed(2) + " * 10^" + pow + " m/s", 5, 65);
+                
+                var pow = dist.toString().length-1;
+                dist /= Math.pow(10, pow);
+                text("Distance from Earth: " + dist.toFixed(2) + " * 10^" + pow + " m", 5, 45);
+                
+                text("Collision: " + satellite.collided, 5, 85);
+                text("Total Collisions: " + globalCollisions, 5, 105);
+                text("Objects: " + space.objlist.length, 5, 125);
+                /*var startY = 65;
+                space.objlist.forEach(function (obj, i) {
+                    
+                    text(obj.totalVelocity, 5, i*20 + startY);
+                    
+                });
+                
+                textAlign(RIGHT, TOP);
+                
+                var t = [
+                    Space.gravityForce(earth, satellite).length,
+                    Space.gravityForce(earth, sun).length
+                ];
+                startY = 5;
+                t.forEach(function (val, i) {
+                    text(val, cW-5, i*20 + startY);
+                });*/
+                
+                //space.objlist.forEach(function (obj, i) {text(obj.collided, 5, 105 + i*20);});
+                
+                textAlign(LEFT, BOTTOM);
+                textSize(15);
+                
+                var t = [
+                    "Esc: Reset",
+                    "E, R: Zoom +/-",
+                    "Q, W: Time +/-",
+                    "Left/Right: Turn",
+                    "Up/Down: Velocity",
+                    "Spacekey: Correct Orbit"
+                ];
+                startY = cH-5;
+                t.forEach(function (val, i) {
+                    text(val, 5, -i*20 + startY);
+                });
+                
+            }
+            
+            
+        </script>
+        
+        <!--<input onclick="followObj=satellite;" value="Follow Satellite" type="button" />
+        <input onclick="followObj=earth;" value="Follow Earth" type="button" />
+        <input onclick="followObj=sun;" value="Follow Sun" type="button" /><br />-->
+        
+        
+        
+    </body>
+    
+</html>
