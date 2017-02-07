@@ -286,7 +286,8 @@ class Game extends Simulation {
             "E, R: Zoom -/+",
             "Left/Right: Turn",
             "Up/Down: Velocity",
-            "Spacekey: Correct Orbit"
+            "Spacekey: Correct Orbit",
+            "A: Manipulate debris"
         ];
     }
     
