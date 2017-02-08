@@ -1,6 +1,8 @@
-function spawnRandomSat(simObj, constru) {
+function spawnRandomSat(simObj, constru, dist, varyDist) {
     var r = Math.random()*2*Math.PI;
-    var d = Math.floor(Math.random()*100000) + 150000;
+    var orbitDist = dist || (SatelliteDist + EarthRadius);
+    var randomDist = varyDist || 100000;
+    var d = Math.floor(Math.random()*randomDist) + orbitDist;
 
     var x = Math.cos(r) * d + simObj.mainObj.x;
     var y = Math.sin(r) * d + simObj.mainObj.y;

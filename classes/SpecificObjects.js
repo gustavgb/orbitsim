@@ -1,11 +1,19 @@
 // Specific space objects
 class Earth extends SpaceObject {
     constructor(x, y) {
-        super(x, y, EarthMass, EarthRadius, "blue");
+        var r = EarthRadius;
+        super(x, y, EarthMass, r, "blue");
 
-        this.atmosphere = new Atmosphere(this, 100000);
+        this.atmosphere = new Atmosphere(this, r + 100000);
+    }
+}
+class MiniEarth extends SpaceObject {
+    constructor(x, y) {
+        var r = EarthRadius/1000;
+        
+        super(x, y, EarthMass, r, "blue");
 
-        //this.collisionDistance = 50000;
+        this.atmosphere = new Atmosphere(this, r+10000);
     }
 }
 
@@ -14,6 +22,14 @@ class Satellite extends SpaceObject {
         super(x, y, 4000, 100, "#0f0");
         
         this.drawVelocity = false;
+    }
+}
+
+class AdvSatellite extends Satellite {
+    constructor(x, y) {
+        super(x, y);
+        
+        this.drawVelocity = true;
     }
 }
 

@@ -37,8 +37,6 @@ class Simulation {
     
     loop() {
         background("white");
-
-        scale(windowsclX, windowsclY);
         
         for (let i = 0; i < this.speedup; i++) {
             this.space.update();
@@ -68,7 +66,7 @@ class Simulation {
         // INFO
         textAlign(LEFT, TOP);
 
-        textSize(20);
+        textSize(15);
         fill("black");
         if (this.showInfo) {
             text("Zoom: 1/" + (1/scl) + "x", 5, 5);
@@ -172,48 +170,56 @@ class Simulation {
                 break;
             case 27:
                 setup();
-                return false;
                 break;
             case 65:
-                if (this.controlObj === undefined) break;
+                if (this instanceof Game) {
 
-                var s = this;
+                    var s = this;
 
-                this.space.objlist.forEach(function (obj, i) {
-                    if (obj !== s.controlObj) {
+                    this.space.objlist.forEach(function (obj, i) {
+                        if (obj !== s.controlObj) {
 
-                        var col = s.controlObj.collision(obj);
+                            var col = s.controlObj.collision(obj);
 
-                        if (col[1].distance < 5000 + col[1].collisionDistance) {
-                            
-                            obj.orbit(s.mainObj);
-                            obj.turn(0.15 * (Space.distance(obj, s.mainObj) / SatelliteDist) *Math.PI);
-                            s.score++;
+                            if (col[1].distance < 5000 + col[1].collisionDistance) {
 
+                                obj.orbit(s.mainObj);
+                                obj.turn(0.15 * (Space.distance(obj, s.mainObj) / SatelliteDist) *Math.PI);
+                                s.score++;
+
+                            }
                         }
-                    }
-                })
+                    });
+                }
                 break;
             case 83: // Spawn new sat
                 if (this instanceof StandardSim) {
-                    spawnRandomSat(this, Satellite);
+                    console.log("new satellite")
+                    var orbitDist = (SatelliteDist/2 + this.earth.r);
+                    spawnRandomSat(this, AdvSatellite, orbitDist);
                 }
                 break;
             
             // Choose simulation
             case 49:
                 if (!includeTools) break;
-                presets.orbit();
+                currentMode= "orbit";
+                setup();
                 break;
             case 50:
                 if (!includeTools) break;
-                presets.kessler();
+                currentMode= "kessler";
+                setup();
                 break;
             case 51:
                 if (!includeTools) break;
-                presets.game();
+                currentMode= "game";
+                setup();
                 break;
         }
+        
+        
+        return false;
     }
 }
 
@@ -223,24 +229,25 @@ class StandardSim extends Simulation {
     constructor() {
         super();
         
-        this.earth = new Earth(0, 0);
-        this.satellite = new Ship(0, -SatelliteDist);
+        this.earth = new MiniEarth(0, 0);
+        
+        var orbitDist = (SatelliteDist/2 + this.earth.r);
+        this.satellite = new Ship(0, -orbitDist);
         this.satellite.orbit(this.earth);
         
         this.mainObj = this.followObj = this.earth;
         
         this.controlObj = this.trackObj = this.satellite;
         
-        var sat = new Satellite(0, SatelliteDist*(Math.random()*0.2 + 0.9));
+        var sat = new AdvSatellite(0, orbitDist*(Math.random()*0.2 + 1));
         sat.orbit(this.earth);
         sat.changeSpeed(Math.random()*0.3 + 0.9);
-        sat.trail = true;
         
         this.space.addObj(this.earth, this.satellite, sat);
         
         this.setAccuracy(8);
         
-        scl = 1/(SatelliteDist / 200);
+        scl = 1/(orbitDist / 200);
         
         this.textBatch = [
             "Esc: Reset",
@@ -248,7 +255,8 @@ class StandardSim extends Simulation {
             "Q, W: Time -/+",
             "Left/Right: Turn",
             "Up/Down: Velocity",
-            "Spacekey: Correct Orbit"
+            "Spacekey: Correct Orbit",
+            "S: Add random satellite"
         ];
     }
 }
@@ -257,8 +265,11 @@ class Game extends Simulation {
     constructor() {
         super();
         
-        this.earth = new Earth(0, 0);
-        this.satellite = new Ship(0, -SatelliteDist);
+        
+        this.earth = new MiniEarth(0, 0);
+        this.earth.atmosphere = new Atmosphere(this.earth, 100000);
+        var orbitDist = (SatelliteDist + this.earth.r);
+        this.satellite = new Ship(0, -orbitDist);
         this.satellite.orbit(this.earth);
         
         this.satellite.trail = false;
@@ -269,8 +280,10 @@ class Game extends Simulation {
         
         this.space.addObj(this.earth, this.satellite);
         
-        for (var i = 0; i < 50; i++) {spawnRandomSat(this, Satellite);}
-        for (var i = 0; i < 30; i++) {spawnRandomSat(this, Debris);}
+        for (var i = 0; i < 50; i++) {spawnRandomSat(this, Satellite, orbitDist);}
+        for (var i = 0; i < 30; i++) {spawnRandomSat(this, Debris, orbitDist);}
+        
+        setTimeout("sim.space.addObj(new Satellite(sim.satellite.x, sim.satellite.y))", 500);
         
         this.setAccuracy(8);
         
@@ -305,14 +318,15 @@ class KesslerSim extends Simulation{
     constructor() {
         super();
         
-        this.earth = new Earth(0, 0);
+        this.earth = new MiniEarth(0, 0);
+        var orbitDist = this.earth.r + SatelliteDist/2;
         
         this.mainObj = this.earth;
         this.followObj = this.earth;
         
         this.space.addObj(this.earth);
         
-        for (var i = 0; i < 50; i++) {spawnRandomSat(this);}
+        for (var i = 0; i < 50; i++) {spawnRandomSat(this, Satellite, orbitDist, 30000);}
         
         this.setAccuracy(1);
         
