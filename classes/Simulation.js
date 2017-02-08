@@ -283,8 +283,6 @@ class Game extends Simulation {
         for (var i = 0; i < 50; i++) {spawnRandomSat(this, Satellite, orbitDist);}
         for (var i = 0; i < 30; i++) {spawnRandomSat(this, Debris, orbitDist);}
         
-        setTimeout("sim.space.addObj(new Satellite(sim.satellite.x, sim.satellite.y))", 500);
-        
         this.setAccuracy(8);
         
         this.showScore = true;
