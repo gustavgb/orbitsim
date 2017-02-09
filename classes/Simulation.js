@@ -250,6 +250,7 @@ class StandardSim extends Simulation {
         scl = 1/(orbitDist / 200);
         
         this.textBatch = [
+            "CONTROLS:",
             "Esc: Reset",
             "E, R: Zoom -/+",
             "Q, W: Time -/+",
@@ -293,6 +294,7 @@ class Game extends Simulation {
         this.controlTime = false;
         
         this.textBatch = [
+            "CONTROLS:",
             "Esc: Reset",
             "E, R: Zoom -/+",
             "Left/Right: Turn",
@@ -333,6 +335,7 @@ class KesslerSim extends Simulation{
         scl = 1/(300000 / 250);
         
         this.textBatch = [
+            "CONTROLS:",
             "Esc: Reset",
             "E, R: Zoom -/+",
             "Q, W: Time -/+"
@@ -362,6 +365,7 @@ class SolarSystem extends Simulation {
         scl = 1/(SunDist / 200);
         
         this.textBatch = [
+            "CONTROLS:",
             "Esc: Reset",
             "E, R: Zoom -/+",
             "Q, W: Time -/+",

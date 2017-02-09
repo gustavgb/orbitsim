@@ -1,3 +1,3 @@
 function keyPressed() {
-    sim.keyEvent(keyCode);
+    return sim.keyEvent(keyCode);
 }
